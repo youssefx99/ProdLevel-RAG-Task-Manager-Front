@@ -12,12 +12,20 @@ import {
   Team,
   CreateTeamDto,
   UpdateTeamDto,
+  PaginatedResult,
 } from '@/types';
 import { ChatRequestDto, ChatResponseDto } from '@/types/chat';
 
 // User API
 export const userApi = {
-  getAll: () => axiosInstance.get<User[]>('/users'),
+  getAll: (page?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+    return axiosInstance.get<PaginatedResult<User>>(
+      `/users?${params.toString()}`
+    );
+  },
   getById: (id: string) => axiosInstance.get<User>(`/users/${id}`),
   create: (data: CreateUserDto) => axiosInstance.post<User>('/users', data),
   update: (id: string, data: UpdateUserDto) =>
@@ -27,7 +35,15 @@ export const userApi = {
 
 // Task API
 export const taskApi = {
-  getAll: () => axiosInstance.get<Task[]>('/tasks'),
+  getAll: (page?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+    return axiosInstance.get<PaginatedResult<Task>>(
+      `/tasks?${params.toString()}`
+    );
+  },
+  getCount: () => axiosInstance.get<number>('/tasks/count'),
   getById: (id: string) => axiosInstance.get<Task>(`/tasks/${id}`),
   create: (data: CreateTaskDto) => axiosInstance.post<Task>('/tasks', data),
   update: (id: string, data: UpdateTaskDto) =>
@@ -37,7 +53,15 @@ export const taskApi = {
 
 // Project API
 export const projectApi = {
-  getAll: () => axiosInstance.get<Project[]>('/projects'),
+  getAll: (page?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+    return axiosInstance.get<PaginatedResult<Project>>(
+      `/projects?${params.toString()}`
+    );
+  },
+  getCount: () => axiosInstance.get<number>('/projects/count'),
   getById: (id: string) => axiosInstance.get<Project>(`/projects/${id}`),
   create: (data: CreateProjectDto) =>
     axiosInstance.post<Project>('/projects', data),
@@ -48,7 +72,15 @@ export const projectApi = {
 
 // Team API
 export const teamApi = {
-  getAll: () => axiosInstance.get<Team[]>('/teams'),
+  getAll: (page?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+    return axiosInstance.get<PaginatedResult<Team>>(
+      `/teams?${params.toString()}`
+    );
+  },
+  getCount: () => axiosInstance.get<number>('/teams/count'),
   getById: (id: string) => axiosInstance.get<Team>(`/teams/${id}`),
   create: (data: CreateTeamDto) => axiosInstance.post<Team>('/teams', data),
   update: (id: string, data: UpdateTeamDto) =>
