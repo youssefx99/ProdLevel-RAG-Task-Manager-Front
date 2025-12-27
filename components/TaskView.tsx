@@ -2,11 +2,30 @@
 
 import { useState, Fragment } from 'react';
 import { Task, User, TaskStatus } from '@/types';
-import { userApi } from '@/lib/api';
-import { ChevronDown, ChevronRight, CheckSquare } from 'lucide-react';
+import { userApi, taskApi } from '@/lib/api';
+import {
+  ChevronDown,
+  ChevronRight,
+  CheckSquare,
+  Pencil,
+  Trash2,
+  UserCheck,
+} from 'lucide-react';
+import Pagination from './Pagination';
 
 interface TaskViewProps {
   tasks: Task[];
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
+  onAssign?: (taskId: string, currentUserId?: string) => void;
+  onRefresh?: () => void;
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    onPageChange: (page: number) => void;
+  };
 }
 
 const statusConfig = {
@@ -27,7 +46,14 @@ const statusConfig = {
   },
 };
 
-export default function TaskView({ tasks }: TaskViewProps) {
+export default function TaskView({
+  tasks,
+  onEdit,
+  onDelete,
+  onAssign,
+  onRefresh,
+  pagination,
+}: TaskViewProps) {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [taskUsers, setTaskUsers] = useState<Record<string, User>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -56,7 +82,7 @@ export default function TaskView({ tasks }: TaskViewProps) {
     setExpandedTasks(newExpanded);
   };
 
-  if (tasks.length === 0) {
+  if (!tasks || tasks.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-gray-400">
         <CheckSquare className="w-16 h-16 mx-auto mb-4 opacity-20" />
@@ -82,6 +108,9 @@ export default function TaskView({ tasks }: TaskViewProps) {
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Created
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Actions
             </th>
           </tr>
         </thead>
@@ -129,13 +158,44 @@ export default function TaskView({ tasks }: TaskViewProps) {
                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                   {new Date(task.createdAt).toLocaleDateString()}
                 </td>
+                <td className="px-6 py-4">
+                  <div className="flex gap-2">
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(task)}
+                        className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                        title="Edit task"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {onAssign && (
+                      <button
+                        onClick={() => onAssign(task.id, task.assignedTo)}
+                        className="p-2 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                        title="Assign to user"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => onDelete(task.id)}
+                        className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                        title="Delete task"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
 
               {/* Expanded User Details */}
               {expandedTasks.has(task.id) && (
                 <tr key={`${task.id}-user`}>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-2 bg-blue-50 dark:bg-blue-900/10"
                   >
                     {loading[task.id] ? (
@@ -198,6 +258,16 @@ export default function TaskView({ tasks }: TaskViewProps) {
           ))}
         </tbody>
       </table>
+
+      {pagination && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          itemsPerPage={pagination.itemsPerPage}
+          onPageChange={pagination.onPageChange}
+        />
+      )}
     </div>
   );
 }
