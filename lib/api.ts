@@ -18,14 +18,16 @@ import { ChatRequestDto, ChatResponseDto } from '@/types/chat';
 
 // User API
 export const userApi = {
-  getAll: (page?: number, limit?: number) => {
+  getAll: (page?: number, limit?: number, search?: string) => {
     const params = new URLSearchParams();
     if (page) params.append('page', page.toString());
     if (limit) params.append('limit', limit.toString());
+    if (search) params.append('search', search);
     return axiosInstance.get<PaginatedResult<User>>(
       `/users?${params.toString()}`
     );
   },
+  getCount: () => axiosInstance.get<number>('/users/count'),
   getById: (id: string) => axiosInstance.get<User>(`/users/${id}`),
   create: (data: CreateUserDto) => axiosInstance.post<User>('/users', data),
   update: (id: string, data: UpdateUserDto) =>
@@ -35,10 +37,11 @@ export const userApi = {
 
 // Task API
 export const taskApi = {
-  getAll: (page?: number, limit?: number) => {
+  getAll: (page?: number, limit?: number, search?: string) => {
     const params = new URLSearchParams();
     if (page) params.append('page', page.toString());
     if (limit) params.append('limit', limit.toString());
+    if (search) params.append('search', search);
     return axiosInstance.get<PaginatedResult<Task>>(
       `/tasks?${params.toString()}`
     );
@@ -53,10 +56,11 @@ export const taskApi = {
 
 // Project API
 export const projectApi = {
-  getAll: (page?: number, limit?: number) => {
+  getAll: (page?: number, limit?: number, search?: string) => {
     const params = new URLSearchParams();
     if (page) params.append('page', page.toString());
     if (limit) params.append('limit', limit.toString());
+    if (search) params.append('search', search);
     return axiosInstance.get<PaginatedResult<Project>>(
       `/projects?${params.toString()}`
     );
@@ -72,10 +76,11 @@ export const projectApi = {
 
 // Team API
 export const teamApi = {
-  getAll: (page?: number, limit?: number) => {
+  getAll: (page?: number, limit?: number, search?: string) => {
     const params = new URLSearchParams();
     if (page) params.append('page', page.toString());
     if (limit) params.append('limit', limit.toString());
+    if (search) params.append('search', search);
     return axiosInstance.get<PaginatedResult<Team>>(
       `/teams?${params.toString()}`
     );
