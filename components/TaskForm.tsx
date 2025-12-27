@@ -59,8 +59,8 @@ export default function TaskForm({
     if (isOpen) {
       setLoadingData(true);
       userApi
-        .getAll()
-        .then((response) => setUsers(response.data))
+        .getAll(1, 1000) // Get all users for dropdown
+        .then((response) => setUsers(response.data.data))
         .catch((err) => console.error('Failed to fetch users', err))
         .finally(() => setLoadingData(false));
     }
