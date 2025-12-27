@@ -39,7 +39,7 @@ export default function UserForm({
       setLoadingTeams(true);
       teamApi
         .getAll()
-        .then((response) => setTeams(response.data))
+        .then((response) => setTeams(response.data.data))
         .catch((err) => console.error('Failed to fetch teams', err))
         .finally(() => setLoadingTeams(false));
     }
