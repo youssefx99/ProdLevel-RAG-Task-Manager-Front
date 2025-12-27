@@ -64,8 +64,8 @@ export default function TeamForm({
 
       setLoadingProjects(true);
       projectApi
-        .getAll()
-        .then((response) => setProjects(response.data))
+        .getAll(1, 1000) // Get all projects for dropdown
+        .then((response) => setProjects(response.data.data))
         .catch((err) => console.error('Failed to fetch projects', err))
         .finally(() => setLoadingProjects(false));
     }
