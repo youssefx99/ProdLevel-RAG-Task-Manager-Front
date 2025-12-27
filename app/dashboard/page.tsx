@@ -13,16 +13,43 @@ import TeamView from '@/components/TeamView';
 import ProjectView from '@/components/ProjectView';
 import TaskView from '@/components/TaskView';
 import ChatWidget from '@/components/ChatWidget';
+import UserSelectionModal from '@/components/UserSelectionModal';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
 
   // Data state
-  const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+
+  // Counts state (for dashboard cards - loaded on page open)
+  const [counts, setCounts] = useState({
+    teams: 0,
+    projects: 0,
+    tasks: 0,
+  });
+
+  // Pagination state
+  const [teamsPagination, setTeamsPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
+  const [projectsPagination, setProjectsPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
+  const [tasksPagination, setTasksPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
 
   // Form visibility state
   const [showUserForm, setShowUserForm] = useState(false);
@@ -35,6 +62,14 @@ export default function DashboardPage() {
   const [showProjectView, setShowProjectView] = useState(false);
   const [showTaskView, setShowTaskView] = useState(false);
 
+  // User selection modal state
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [modalContext, setModalContext] = useState<{
+    type: 'task' | 'team';
+    id: string;
+    currentUserId?: string;
+  } | null>(null);
+
   // Selected items for editing
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -42,41 +77,76 @@ export default function DashboardPage() {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
   // Fetch functions
-  const fetchUsers = async () => {
+  const fetchTasks = async (page: number = 1) => {
     try {
-      const response = await userApi.getAll();
-      setUsers(response.data);
-    } catch (error) {
-      console.error('Failed to fetch users', error);
-    }
-  };
-
-  const fetchTasks = async () => {
-    try {
-      const response = await taskApi.getAll();
-      setTasks(response.data);
+      const response = await taskApi.getAll(page, tasksPagination.itemsPerPage);
+      setTasks(response.data.data);
+      setTasksPagination({
+        currentPage: response.data.page,
+        totalPages: response.data.totalPages,
+        totalItems: response.data.total,
+        itemsPerPage: response.data.limit,
+      });
     } catch (error) {
       console.error('Failed to fetch tasks', error);
     }
   };
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (page: number = 1) => {
     try {
-      const response = await projectApi.getAll();
-      setProjects(response.data);
+      const response = await projectApi.getAll(
+        page,
+        projectsPagination.itemsPerPage
+      );
+      setProjects(response.data.data);
+      setProjectsPagination({
+        currentPage: response.data.page,
+        totalPages: response.data.totalPages,
+        totalItems: response.data.total,
+        itemsPerPage: response.data.limit,
+      });
     } catch (error) {
       console.error('Failed to fetch projects', error);
     }
   };
 
-  const fetchTeams = async () => {
+  const fetchTeams = async (page: number = 1) => {
     try {
-      const response = await teamApi.getAll();
-      setTeams(response.data);
+      const response = await teamApi.getAll(page, teamsPagination.itemsPerPage);
+      setTeams(response.data.data);
+      setTeamsPagination({
+        currentPage: response.data.page,
+        totalPages: response.data.totalPages,
+        totalItems: response.data.total,
+        itemsPerPage: response.data.limit,
+      });
     } catch (error) {
       console.error('Failed to fetch teams', error);
     }
   };
+
+  // Fetch only counts for dashboard cards (lightweight)
+  const fetchCounts = async () => {
+    try {
+      const [teamsRes, projectsRes, tasksRes] = await Promise.all([
+        teamApi.getCount(),
+        projectApi.getCount(),
+        taskApi.getCount(),
+      ]);
+      setCounts({
+        teams: teamsRes.data,
+        projects: projectsRes.data,
+        tasks: tasksRes.data,
+      });
+    } catch (error) {
+      console.error('Failed to fetch counts', error);
+    }
+  };
+
+  // Track which views have been loaded
+  const [teamsLoaded, setTeamsLoaded] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -91,17 +161,126 @@ export default function DashboardPage() {
       setUser(JSON.parse(userData));
     }
 
-    // Fetch all data
-    fetchUsers();
-    fetchTasks();
-    fetchProjects();
-    fetchTeams();
+    // Fetch only counts on page load (lightweight)
+    fetchCounts();
   }, [router]);
+
+  // Effect to fetch teams when drawer opens
+  useEffect(() => {
+    if (showTeamView && !teamsLoaded) {
+      fetchTeams();
+      setTeamsLoaded(true);
+    }
+  }, [showTeamView]);
+
+  // Effect to fetch projects when drawer opens
+  useEffect(() => {
+    if (showProjectView && !projectsLoaded) {
+      fetchProjects();
+      setProjectsLoaded(true);
+    }
+  }, [showProjectView]);
+
+  // Effect to fetch tasks when drawer opens
+  useEffect(() => {
+    if (showTaskView && !tasksLoaded) {
+      fetchTasks();
+      setTasksLoaded(true);
+    }
+  }, [showTaskView]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     router.push('/login');
+  };
+
+  // Delete handlers
+  const handleDeleteTeam = async (teamId: string) => {
+    if (confirm('Are you sure you want to delete this team?')) {
+      try {
+        await teamApi.delete(teamId);
+        fetchTeams(teamsPagination.currentPage);
+        fetchCounts(); // Update dashboard counts
+      } catch (error) {
+        console.error('Failed to delete team', error);
+        alert('Failed to delete team');
+      }
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (confirm('Are you sure you want to delete this project?')) {
+      try {
+        await projectApi.delete(projectId);
+        fetchProjects(projectsPagination.currentPage);
+        fetchCounts(); // Update dashboard counts
+      } catch (error) {
+        console.error('Failed to delete project', error);
+        alert('Failed to delete project');
+      }
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (confirm('Are you sure you want to delete this task?')) {
+      try {
+        await taskApi.delete(taskId);
+        fetchTasks(tasksPagination.currentPage);
+        fetchCounts(); // Update dashboard counts
+      } catch (error) {
+        console.error('Failed to delete task', error);
+        alert('Failed to delete task');
+      }
+    }
+  };
+
+  // Edit handlers
+  const handleEditTeam = (team: Team) => {
+    setSelectedTeam(team);
+    setShowTeamForm(true);
+    setShowTeamView(false);
+  };
+
+  const handleEditProject = (project: Project) => {
+    setSelectedProject(project);
+    setShowProjectForm(true);
+    setShowProjectView(false);
+  };
+
+  const handleEditTask = (task: Task) => {
+    setSelectedTask(task);
+    setShowTaskForm(true);
+    setShowTaskView(false);
+  };
+
+  // Assign handlers (opens modal for user selection)
+  const handleAssignToTeam = (teamId: string) => {
+    setModalContext({ type: 'team', id: teamId });
+    setShowUserModal(true);
+  };
+
+  const handleAssignTask = (taskId: string, currentUserId?: string) => {
+    setModalContext({ type: 'task', id: taskId, currentUserId });
+    setShowUserModal(true);
+  };
+
+  const handleUserSelection = async (userId: string) => {
+    if (!modalContext) return;
+
+    try {
+      if (modalContext.type === 'task') {
+        await taskApi.update(modalContext.id, { assignedTo: userId });
+        fetchTasks(tasksPagination.currentPage);
+      } else if (modalContext.type === 'team') {
+        await userApi.update(userId, { teamId: modalContext.id });
+        // User assigned to team - no need to refresh since UserSelectionModal handles its own data
+      }
+      setModalContext(null);
+    } catch (error) {
+      console.error('Failed to assign user', error);
+      alert('Failed to assign user');
+    }
   };
 
   if (!user) return <div>Loading...</div>;
@@ -137,7 +316,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold text-black">Teams</h3>
               <span className="text-2xl font-bold text-orange-600">
-                {teams.length}
+                {counts.teams}
               </span>
             </div>
             <p className="text-gray-600 mb-4">Manage your teams</p>
@@ -193,7 +372,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold text-black">Projects</h3>
               <span className="text-2xl font-bold text-purple-600">
-                {projects.length}
+                {counts.projects}
               </span>
             </div>
             <p className="text-gray-600 mb-4">View your projects</p>
@@ -249,7 +428,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold text-black">Tasks</h3>
               <span className="text-2xl font-bold text-green-600">
-                {tasks.length}
+                {counts.tasks}
               </span>
             </div>
             <p className="text-gray-600 mb-4">Track your tasks</p>
@@ -311,7 +490,7 @@ export default function DashboardPage() {
           setSelectedUser(null);
         }}
         user={selectedUser}
-        onSuccess={fetchUsers}
+        onSuccess={() => {}}
       />
 
       <TaskForm
@@ -321,7 +500,10 @@ export default function DashboardPage() {
           setSelectedTask(null);
         }}
         task={selectedTask}
-        onSuccess={fetchTasks}
+        onSuccess={() => {
+          fetchTasks(tasksPagination.currentPage);
+          fetchCounts();
+        }}
       />
 
       <ProjectForm
@@ -331,7 +513,10 @@ export default function DashboardPage() {
           setSelectedProject(null);
         }}
         project={selectedProject}
-        onSuccess={fetchProjects}
+        onSuccess={() => {
+          fetchProjects(projectsPagination.currentPage);
+          fetchCounts();
+        }}
       />
 
       <TeamForm
@@ -341,7 +526,10 @@ export default function DashboardPage() {
           setSelectedTeam(null);
         }}
         team={selectedTeam}
-        onSuccess={fetchTeams}
+        onSuccess={() => {
+          fetchTeams(teamsPagination.currentPage);
+          fetchCounts();
+        }}
       />
 
       {/* Bottom Drawers for Viewing Data */}
@@ -350,7 +538,24 @@ export default function DashboardPage() {
         onClose={() => setShowTeamView(false)}
         title="All Teams"
       >
-        <TeamView teams={teams} />
+        <TeamView
+          teams={teams}
+          onEdit={handleEditTeam}
+          onDelete={handleDeleteTeam}
+          onAssign={handleAssignToTeam}
+          onRefresh={fetchTeams}
+          pagination={
+            teamsPagination.totalPages > 0
+              ? {
+                  currentPage: teamsPagination.currentPage,
+                  totalPages: teamsPagination.totalPages,
+                  totalItems: teamsPagination.totalItems,
+                  itemsPerPage: teamsPagination.itemsPerPage,
+                  onPageChange: (page) => fetchTeams(page),
+                }
+              : undefined
+          }
+        />
       </BottomDrawer>
 
       <BottomDrawer
@@ -358,7 +563,23 @@ export default function DashboardPage() {
         onClose={() => setShowProjectView(false)}
         title="All Projects"
       >
-        <ProjectView projects={projects} />
+        <ProjectView
+          projects={projects}
+          onEdit={handleEditProject}
+          onDelete={handleDeleteProject}
+          onRefresh={fetchProjects}
+          pagination={
+            projectsPagination.totalPages > 0
+              ? {
+                  currentPage: projectsPagination.currentPage,
+                  totalPages: projectsPagination.totalPages,
+                  totalItems: projectsPagination.totalItems,
+                  itemsPerPage: projectsPagination.itemsPerPage,
+                  onPageChange: (page) => fetchProjects(page),
+                }
+              : undefined
+          }
+        />
       </BottomDrawer>
 
       <BottomDrawer
@@ -366,8 +587,41 @@ export default function DashboardPage() {
         onClose={() => setShowTaskView(false)}
         title="All Tasks"
       >
-        <TaskView tasks={tasks} />
+        <TaskView
+          tasks={tasks}
+          onEdit={handleEditTask}
+          onDelete={handleDeleteTask}
+          onAssign={handleAssignTask}
+          onRefresh={fetchTasks}
+          pagination={
+            tasksPagination.totalPages > 0
+              ? {
+                  currentPage: tasksPagination.currentPage,
+                  totalPages: tasksPagination.totalPages,
+                  totalItems: tasksPagination.totalItems,
+                  itemsPerPage: tasksPagination.itemsPerPage,
+                  onPageChange: (page) => fetchTasks(page),
+                }
+              : undefined
+          }
+        />
       </BottomDrawer>
+
+      {/* User Selection Modal */}
+      <UserSelectionModal
+        isOpen={showUserModal}
+        onClose={() => {
+          setShowUserModal(false);
+          setModalContext(null);
+        }}
+        onSelect={handleUserSelection}
+        title={
+          modalContext?.type === 'task'
+            ? 'Assign Task To User'
+            : 'Assign User To Team'
+        }
+        currentUserId={modalContext?.currentUserId}
+      />
 
       {/* Chat Widget */}
       <ChatWidget />
