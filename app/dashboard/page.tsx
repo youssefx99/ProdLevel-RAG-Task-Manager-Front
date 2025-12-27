@@ -12,6 +12,7 @@ import BottomDrawer from '@/components/BottomDrawer';
 import TeamView from '@/components/TeamView';
 import ProjectView from '@/components/ProjectView';
 import TaskView from '@/components/TaskView';
+import UserView from '@/components/UserView';
 import ChatWidget from '@/components/ChatWidget';
 import UserSelectionModal from '@/components/UserSelectionModal';
 
@@ -23,12 +24,14 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   // Counts state (for dashboard cards - loaded on page open)
   const [counts, setCounts] = useState({
     teams: 0,
     projects: 0,
     tasks: 0,
+    users: 0,
   });
 
   // Pagination state
@@ -50,6 +53,12 @@ export default function DashboardPage() {
     totalItems: 0,
     itemsPerPage: 10,
   });
+  const [usersPagination, setUsersPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
 
   // Form visibility state
   const [showUserForm, setShowUserForm] = useState(false);
@@ -61,6 +70,7 @@ export default function DashboardPage() {
   const [showTeamView, setShowTeamView] = useState(false);
   const [showProjectView, setShowProjectView] = useState(false);
   const [showTaskView, setShowTaskView] = useState(false);
+  const [showUserView, setShowUserView] = useState(false);
 
   // User selection modal state
   const [showUserModal, setShowUserModal] = useState(false);
@@ -76,10 +86,21 @@ export default function DashboardPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
 
+  // Search state
+  const [tasksSearch, setTasksSearch] = useState('');
+  const [projectsSearch, setProjectsSearch] = useState('');
+  const [teamsSearch, setTeamsSearch] = useState('');
+  const [usersSearch, setUsersSearch] = useState('');
+
   // Fetch functions
-  const fetchTasks = async (page: number = 1) => {
+  const fetchTasks = async (page: number = 1, search?: string) => {
     try {
-      const response = await taskApi.getAll(page, tasksPagination.itemsPerPage);
+      const searchTerm = search !== undefined ? search : tasksSearch;
+      const response = await taskApi.getAll(
+        page,
+        tasksPagination.itemsPerPage,
+        searchTerm || undefined
+      );
       setTasks(response.data.data);
       setTasksPagination({
         currentPage: response.data.page,
@@ -92,11 +113,13 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchProjects = async (page: number = 1) => {
+  const fetchProjects = async (page: number = 1, search?: string) => {
     try {
+      const searchTerm = search !== undefined ? search : projectsSearch;
       const response = await projectApi.getAll(
         page,
-        projectsPagination.itemsPerPage
+        projectsPagination.itemsPerPage,
+        searchTerm || undefined
       );
       setProjects(response.data.data);
       setProjectsPagination({
@@ -110,9 +133,14 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchTeams = async (page: number = 1) => {
+  const fetchTeams = async (page: number = 1, search?: string) => {
     try {
-      const response = await teamApi.getAll(page, teamsPagination.itemsPerPage);
+      const searchTerm = search !== undefined ? search : teamsSearch;
+      const response = await teamApi.getAll(
+        page,
+        teamsPagination.itemsPerPage,
+        searchTerm || undefined
+      );
       setTeams(response.data.data);
       setTeamsPagination({
         currentPage: response.data.page,
@@ -125,18 +153,40 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchUsers = async (page: number = 1, search?: string) => {
+    try {
+      const searchTerm = search !== undefined ? search : usersSearch;
+      const response = await userApi.getAll(
+        page,
+        usersPagination.itemsPerPage,
+        searchTerm || undefined
+      );
+      setUsers(response.data.data);
+      setUsersPagination({
+        currentPage: response.data.page,
+        totalPages: response.data.totalPages,
+        totalItems: response.data.total,
+        itemsPerPage: response.data.limit,
+      });
+    } catch (error) {
+      console.error('Failed to fetch users', error);
+    }
+  };
+
   // Fetch only counts for dashboard cards (lightweight)
   const fetchCounts = async () => {
     try {
-      const [teamsRes, projectsRes, tasksRes] = await Promise.all([
+      const [teamsRes, projectsRes, tasksRes, usersRes] = await Promise.all([
         teamApi.getCount(),
         projectApi.getCount(),
         taskApi.getCount(),
+        userApi.getCount(),
       ]);
       setCounts({
         teams: teamsRes.data,
         projects: projectsRes.data,
         tasks: tasksRes.data,
+        users: usersRes.data,
       });
     } catch (error) {
       console.error('Failed to fetch counts', error);
@@ -147,6 +197,7 @@ export default function DashboardPage() {
   const [teamsLoaded, setTeamsLoaded] = useState(false);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -188,6 +239,14 @@ export default function DashboardPage() {
       setTasksLoaded(true);
     }
   }, [showTaskView]);
+
+  // Effect to fetch users when drawer opens
+  useEffect(() => {
+    if (showUserView && !usersLoaded) {
+      fetchUsers();
+      setUsersLoaded(true);
+    }
+  }, [showUserView]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -235,6 +294,19 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      try {
+        await userApi.delete(userId);
+        fetchUsers(usersPagination.currentPage);
+        fetchCounts(); // Update dashboard counts
+      } catch (error) {
+        console.error('Failed to delete user', error);
+        alert('Failed to delete user');
+      }
+    }
+  };
+
   // Edit handlers
   const handleEditTeam = (team: Team) => {
     setSelectedTeam(team);
@@ -252,6 +324,12 @@ export default function DashboardPage() {
     setSelectedTask(task);
     setShowTaskForm(true);
     setShowTaskView(false);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setShowUserForm(true);
+    setShowUserView(false);
   };
 
   // Assign handlers (opens modal for user selection)
@@ -311,7 +389,7 @@ export default function DashboardPage() {
           <p className="text-gray-600">Role: {user.role}</p>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold text-black">Teams</h3>
@@ -479,6 +557,62 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+            <div className="flex justify-between items-start mb-2">
+              <h3 className="text-lg font-semibold text-black">Users</h3>
+              <span className="text-2xl font-bold text-cyan-600">
+                {counts.users}
+              </span>
+            </div>
+            <p className="text-gray-600 mb-4">Manage your users</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowUserForm(true)}
+                className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                Create
+              </button>
+              <button
+                onClick={() => setShowUserView(true)}
+                className="bg-cyan-100 hover:bg-cyan-200 text-cyan-600 px-4 py-2 rounded-lg font-medium transition-colors"
+                title="View users"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -490,7 +624,10 @@ export default function DashboardPage() {
           setSelectedUser(null);
         }}
         user={selectedUser}
-        onSuccess={() => {}}
+        onSuccess={() => {
+          fetchUsers(usersPagination.currentPage);
+          fetchCounts();
+        }}
       />
 
       <TaskForm
@@ -535,15 +672,30 @@ export default function DashboardPage() {
       {/* Bottom Drawers for Viewing Data */}
       <BottomDrawer
         isOpen={showTeamView}
-        onClose={() => setShowTeamView(false)}
+        onClose={() => {
+          setShowTeamView(false);
+          setTeamsSearch('');
+        }}
         title="All Teams"
       >
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search teams..."
+            value={teamsSearch}
+            onChange={(e) => {
+              setTeamsSearch(e.target.value);
+              fetchTeams(1, e.target.value);
+            }}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+        </div>
         <TeamView
           teams={teams}
           onEdit={handleEditTeam}
           onDelete={handleDeleteTeam}
           onAssign={handleAssignToTeam}
-          onRefresh={fetchTeams}
+          onRefresh={() => fetchTeams(1, teamsSearch)}
           pagination={
             teamsPagination.totalPages > 0
               ? {
@@ -551,7 +703,7 @@ export default function DashboardPage() {
                   totalPages: teamsPagination.totalPages,
                   totalItems: teamsPagination.totalItems,
                   itemsPerPage: teamsPagination.itemsPerPage,
-                  onPageChange: (page) => fetchTeams(page),
+                  onPageChange: (page) => fetchTeams(page, teamsSearch),
                 }
               : undefined
           }
@@ -560,14 +712,29 @@ export default function DashboardPage() {
 
       <BottomDrawer
         isOpen={showProjectView}
-        onClose={() => setShowProjectView(false)}
+        onClose={() => {
+          setShowProjectView(false);
+          setProjectsSearch('');
+        }}
         title="All Projects"
       >
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search projects..."
+            value={projectsSearch}
+            onChange={(e) => {
+              setProjectsSearch(e.target.value);
+              fetchProjects(1, e.target.value);
+            }}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+        </div>
         <ProjectView
           projects={projects}
           onEdit={handleEditProject}
           onDelete={handleDeleteProject}
-          onRefresh={fetchProjects}
+          onRefresh={() => fetchProjects(1, projectsSearch)}
           pagination={
             projectsPagination.totalPages > 0
               ? {
@@ -575,7 +742,7 @@ export default function DashboardPage() {
                   totalPages: projectsPagination.totalPages,
                   totalItems: projectsPagination.totalItems,
                   itemsPerPage: projectsPagination.itemsPerPage,
-                  onPageChange: (page) => fetchProjects(page),
+                  onPageChange: (page) => fetchProjects(page, projectsSearch),
                 }
               : undefined
           }
@@ -584,15 +751,30 @@ export default function DashboardPage() {
 
       <BottomDrawer
         isOpen={showTaskView}
-        onClose={() => setShowTaskView(false)}
+        onClose={() => {
+          setShowTaskView(false);
+          setTasksSearch('');
+        }}
         title="All Tasks"
       >
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={tasksSearch}
+            onChange={(e) => {
+              setTasksSearch(e.target.value);
+              fetchTasks(1, e.target.value);
+            }}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+        </div>
         <TaskView
           tasks={tasks}
           onEdit={handleEditTask}
           onDelete={handleDeleteTask}
           onAssign={handleAssignTask}
-          onRefresh={fetchTasks}
+          onRefresh={() => fetchTasks(1, tasksSearch)}
           pagination={
             tasksPagination.totalPages > 0
               ? {
@@ -600,7 +782,46 @@ export default function DashboardPage() {
                   totalPages: tasksPagination.totalPages,
                   totalItems: tasksPagination.totalItems,
                   itemsPerPage: tasksPagination.itemsPerPage,
-                  onPageChange: (page) => fetchTasks(page),
+                  onPageChange: (page) => fetchTasks(page, tasksSearch),
+                }
+              : undefined
+          }
+        />
+      </BottomDrawer>
+
+      <BottomDrawer
+        isOpen={showUserView}
+        onClose={() => {
+          setShowUserView(false);
+          setUsersSearch('');
+        }}
+        title="All Users"
+      >
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search users..."
+            value={usersSearch}
+            onChange={(e) => {
+              setUsersSearch(e.target.value);
+              fetchUsers(1, e.target.value);
+            }}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+        </div>
+        <UserView
+          users={users}
+          onEdit={handleEditUser}
+          onDelete={handleDeleteUser}
+          onRefresh={() => fetchUsers(1, usersSearch)}
+          pagination={
+            usersPagination.totalPages > 0
+              ? {
+                  currentPage: usersPagination.currentPage,
+                  totalPages: usersPagination.totalPages,
+                  totalItems: usersPagination.totalItems,
+                  itemsPerPage: usersPagination.itemsPerPage,
+                  onPageChange: (page) => fetchUsers(page, usersSearch),
                 }
               : undefined
           }
