@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import Sidebar from './Sidebar';
 import { projectApi } from '@/lib/api';
 import { CreateProjectDto, UpdateProjectDto, Project } from '@/types';
@@ -21,9 +21,24 @@ export default function ProjectForm({
   const isUpdate = !!project;
 
   const [formData, setFormData] = useState<CreateProjectDto>({
-    name: project?.name || '',
-    description: project?.description || '',
+    name: '',
+    description: '',
   });
+
+  // Update form data when project prop changes
+  useEffect(() => {
+    if (project) {
+      setFormData({
+        name: project.name,
+        description: project.description || '',
+      });
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+      });
+    }
+  }, [project]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
